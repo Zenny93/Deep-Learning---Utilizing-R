@@ -1,2 +1,3 @@
 # Deep-Learning---Utilizing-R
 This repository contains deep learning activities I worked on using R.  Several deep learning techniques such as Forecasting and Prediction, Arima Modeling , Linear Regression, Neural Networks and as on were explored in the activities contained in this repository. Libraries such as Tensor flow, Keras etc. were used for some of the deep learning techniques.
+Note: To prevent anyone needing to view the contents of the files in this repository using R studio, I created an HTML version of the R studio files. You mught need to download the HTML file to view the contents of the file. The view raw does not parse the contents of the HTML file correctly.
