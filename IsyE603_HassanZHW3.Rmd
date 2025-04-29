@@ -1,0 +1,279 @@
+---
+Name: "Zanub Hasssn"
+title: "IsyE 603 HW3"
+output: html_notebook
+---
+
+
+
+```{r}
+#Problem 1c - Create the naive forecast for the validation period
+library(forecast)
+SouvenirSales.data <- read.csv(file ='SouvenirSales.csv', header = TRUE)
+#creating the data in a time series format spanning from  Jan 1995 to  Dec. 2001 using a freq of 12
+Sales.ts <- ts(SouvenirSales.data$Sales, start = c(1995,1), end = c(2001, 12), freq = 12)
+# h should be the same as validation period if we want to make a validation prediction. 
+fixed.nValid <- 12
+# ssince we have a fixed valid the rest will be training. 
+fixed.nTrain <- length(Sales.ts) - fixed.nValid
+#training period
+train.ts <- window(Sales.ts, start = c(1995, 1), end = c(1995, fixed.nTrain))
+#validation period
+valid.ts <- window(Sales.ts, start = c(1995, fixed.nTrain + 1), end = c(1995, fixed.nTrain + fixed.nValid))
+#h is the horizon that is the values we want to forecost in the future. In this case 12 month ahead so I set h = 12
+naive.fixed <- naive(train.ts, h = fixed.nValid)
+#naive roll is a one step way of doing naive prediction 
+#naive.roll <- ts(SouvenirSales.data$Sales[fixed.nTrain:(fixed.nTrain + fixed.nValid - 1)], start = c(1995, fixed.nTrain + 1), end = c(1995, fixed.nTrain + fixed.nValid), freq = 12)
+#naive.roll
+naive.fixed$mean
+
+#problem 1d - computing root mean square error and mean absolute percent error
+stepsAhead <- 12 #roll ahead #
+error <- rep(0, fixed.nValid - stepsAhead + 1)
+percent.error <- rep(0, fixed.nValid - stepsAhead + 1)
+for(j in fixed.nTrain:(fixed.nTrain + fixed.nValid - stepsAhead)) {
+  train.ts <- window(Sales.ts, start = c(1995, 1), end = c(1995, j))
+  valid.ts <- window(Sales.ts, start = c(1995, j + stepsAhead), end = c(1995, j + stepsAhead))
+  naive.fixed <- naive(train.ts, h = stepsAhead)
+  error[j - fixed.nTrain + 1] <- valid.ts - naive.fixed$mean[stepsAhead]
+  percent.error[j - fixed.nTrain + 1] <- error[j - fixed.nTrain + 1] / valid.ts
+}
+sqrt(mean(error^2)) #RMSE
+mean(abs(percent.error))#MAPE
+
+
+#Problem 1e
+#Historgram of the forecast errors
+hist(naive.fixed$residuals, ylab = "Frequency", xlab = "Forecast Error", bty = "l", main = "")
+
+#Plotting actual sales vs forecasted sales
+plot(train.ts, ylim = c(1600, 106000),  ylab = "Sales", xlab = "Time", bty = "l", xaxt = "n", xlim = c(1995,2003.25), main = "Actual Sales vs Forecasted Sales")
+axis(1, at = seq(1995, 2003, 1), labels = format(seq(1995, 2003, 1)))
+lines(naive.fixed$mean, lwd = 2, col = "blue", lty = 2)
+lines(valid.ts)
+
+
+
+
+
+```
+## Problem 1a
+The data was partitioned in order to assess the prediction error which is useful for evaluating the performance of a model.
+
+## Problem 1b
+The analyst chose a 12 month validation period since the priority is to forecast the sales for the next 12 months and the validation period should echo the forecost horizon (h).
+
+
+##Problem 1e
+The actual sales in the year 2001 is different from the naive forecast in 2001. 
+
+##Problem 1f
+The analyst will have to combine the validation and training data sets together again in order to make a forecast for 2002. This is because thevalidation data set contains most resent data and will be beneficial for making a more accurate forecast.
+```{r}
+#Problem 2a - Plotting a time series plot for pre sept 11
+#The sept11 ts data (time series) has to first be split into pre and post sept 11
+library(dplyr)
+library(tidyverse)
+library(readxl) #reading an xls file in
+Sept11.data <- read_excel("Sept11Travel.xls") #read my file in as xls
+str(Sept11.data ) #Checking Structure of my data
+#Created a time series data before 911 which is between Jan 1990 to Aug 2001
+AirMiles.ts<-ts(Sept11.data$`Air RPM (000s)`, start = c(1990,1), end = c(2001, 8), frequency = 12)
+plot.ts(AirMiles.ts, ylim = c(30000000, 70000000),  ylab = "AirMiles", xlab = "Time", bty = "l", xaxt = "n", xlim = c(1990,2001.25), main = "Pre Event Air Time Series")
+axis(1, at = seq(1990, 2001, 1), labels = format(seq(1990, 2001, 1)))
+
+
+
+
+
+```
+## Problem 2a
+The following time series components are present from the plot
+Level
+Trend 
+Seasonality
+Random Noise
+
+##Problem 2b
+Holt-Winter's exponential smoothing should be used because the Winter method is adequate for forecasting a time series with both seasonality and trend.
+
+```{r}
+##Problem 3b(i) - Generating 4 quarters ahead by partitioning data such that validation period represents the last four quarters
+#Run the forecaster approach of the Holt-Winter smoothing on the data using alpha = 0.2, beta = 0.15 and gamma = 0.05
+library(forecast)
+DeptSales.data <- read.csv(file = 'DepartmentStoreSales.csv', header = TRUE)
+str(DeptSales.data)
+DeptSales.ts <- ts(DeptSales.data$Sales, frequency = 4) #frequency is 4  for quarterly
+# set to 4 ofr last 4 quarters
+Validlength <-4
+#Since last 4 is valid rest will be train
+TrainLength <- length(DeptSales.ts) - Validlength
+DeptSaletrain.ts <- window(DeptSales.ts, end = c(1, TrainLength))
+#validation period
+DeptSalevalid.ts <- window(DeptSales.ts, start = c(1, TrainLength+ 1),  end = c(1, TrainLength + Validlength))
+#adding ets (error , trend, seasonality), "ZZZ" - is for automated model selection.
+DeptSale.HoltWint <-ets(DeptSaletrain.ts, model = "ZZZ", alpha = 0.2, beta = 0.15, gamma = 0.05)
+DeptSales.Forecast <- forecast(DeptSale.HoltWint, h = Validlength, level = 0)
+plot(DeptSales.Forecast, ylim = c(48000, 105000),  ylab = "Sales", xlab = "Time", bty = "l", xaxt = "n", xlim = c(1,7), main = "Quarterly Department Store Sales")
+#adding x axis
+axis(1, at = seq(1, 7, 1), labels = format(seq(1, 7, 1)))
+lines(DeptSales.Forecast$fitted, lwd = 2, col = "blue")
+lines(DeptSales.Forecast$mean, lwd = 2, lty = 2, col = "blue" )
+
+
+##Problem 3b(ii) - Compute the MAPE(mean absolute percent error) for Q21- 22 of the validation period
+#Note: I am using the forecast from my Hotlt winter forecast above.
+#Quarter 21
+Quarter21 <- window(DeptSales.ts, start = c(1,21), end = c(1,21))
+#This function below can estimate the errors needed for a ts 
+accuracy(DeptSales.Forecast, Quarter21)
+
+#Quarter 22
+Quarter22 <- window(DeptSales.ts, start = c(1,22), end = c(1,22))
+#This function below can estimate the errors needed for a ts 
+accuracy(DeptSales.Forecast, Quarter22)
+
+#Problem 3d - Applying the differencing method
+#Differencing using lag 1 and 4. Lag 1 removes trend. Lag 4 removes seasonality.
+difflag1.ts <- diff(DeptSales.ts, lag =1) #removes trend
+difflag4.ts <- diff(DeptSales.ts, lag =4) #removes seasonality
+# twice difference to do opposite, removing seasonality then trend.
+difflag4_1.ts <-diff(diff(DeptSales.ts, lag = 4), lag = 1) 
+par(mfrow = c(3,2))
+plot(DeptSales.ts, ylab = "Sales", xlab = "Time", main = "Original Dept Sales Data")
+plot(difflag1.ts, ylab = "Lag1Sales", xlab = "Time", main = "Dept Sales to Remove Trend ")
+plot(difflag4.ts, ylab = "Lag4Sales", xlab = "Time", main = "Dept Sales to Remove Seasonality ")
+plot(difflag4_1.ts, ylab = "Lag4Lag1Saless", xlab = "Time", main = "Dept Sales to Remove Seasonality Then Trend")
+
+#Problem 3e -Forecasting 21-22 based on the average of the double differneced series in part d
+#Training and validation datasets on the double difference from part d
+DDiffTrain.ts <- window(difflag4_1.ts, end = c(1, TrainLength))
+#validation period
+DDiffValid.ts <- window(difflag4_1.ts, start = c(1, TrainLength+ 1),  end = c(1, TrainLength + Validlength))
+## Setting up the mean point forecast using the training period
+meanpointForecasts <- meanf(DDiffTrain.ts, h=4)
+meanpointForecasts
+
+#To get the actual forecast you need to de-difference the forecast
+actualForecasts <- vector()
+
+for (i in 1:Validlength) {
+  if(i == 1) {
+    actualForecasts[i] <- meanpointForecasts$mean[i] + DeptSaletrain.ts[(TrainLength+i)-Validlength] + (DeptSaletrain.ts[TrainLength] - DeptSaletrain.ts[TrainLength - Validlength])
+  }
+  else {
+    actualForecasts[i] <- meanpointForecasts$mean[i] + DeptSaletrain.ts[(TrainLength+i)-Validlength] + (actualForecasts[i-1] - DeptSaletrain.ts[TrainLength+i-1-Validlength])
+  }
+}
+#print actual  forecast after de-differencing
+actualForecasts
+
+#estimating the MAPE for the actual forecasts in the difference method
+accuracy(actualForecasts, DeptSalevalid.ts)
+```
+## Pronlem 3a
+Moving average of raw series - Not suitable since plot contains trend and seasonality
+Moving average of deseasonalized series - Not suitable because even if the season is removed. The trend is the still present.
+Simple exponential smoothing of the raw series -  Not suitable because plot has trend and seasonality.
+Double exponential smoothing of the raw series - Not suitable because the plot has seasonaility.
+Holt-Winter's exponential smoothing - Suitable for plots with trends and seasonality.
+
+##Problem 3b(ii)
+Note: The test set is the same as the validation period in this case.
+MAPE for the Q21 training set is 1.99 and the test set is 2.16
+MAPE for the Q22 training set is 1.99 and the test set is 0.73
+
+##Problem 3c
+From part b and the two plots provided, it can be concluded that the Holt-Winter Method is suitable for forecasting Q21 and Q22 because it captures the trend and seasonality of the data and the values of MAPE are low.
+
+##Problem 3d
+From the plots above, the order of differncing does not matter. So, removing trend or seasonality first does not matter in this case.
+
+## Problem 3f
+I would choose the Holt-Winter's method because it was easier to execute than the differencing method. Also, the MAPE generated using the differencing methos id 4.06 which is much higher than the error generated using the Holt-Winter's method.
+
+## Problem 3g
+From the textbook, the simplest approach that can be used is the naive forecast. In this case there is seasonality to our data so we can use the seasonality naive forecast method as a baseline to compare all the other forecasts.
+```{r}
+#Problem 4a
+library(fpp3)# Estimatiing the alpha and l0 for the number of pigs slaughtered in Victoria
+#Filtering data for Pigs and victoria
+Vicpigsdata<-aus_livestock %>%
+  filter(State == 'Victoria',
+         Animal == 'Pigs')
+         
+#Getting the parameters
+fit<-Vicpigsdata %>%
+  model(ETS(Count~error("A") + trend("N") + season("N")))
+
+report(fit)
+
+dataforecast <- fit %>%
+  forecast(h = 4)
+dataforecast
+
+#Problem 4b
+# yhat is the mean - predicted value
+yhat <- mean(dataforecast$.mean[1])
+
+# Applying  augment function to get the residuals
+augfit <- augment(fit)
+
+# Estimating the standard deviation based on the residuals from augment function 
+s <- sd(augfit$.resid)
+
+# Calculating the 95% prediction intervals
+upper_lim_95 <- yhat + (s * 1.96)
+lower_lim_95 <- yhat - (s * 1.96)
+
+int_95 <- c(lower_lim_95, upper_lim_95)
+
+# Printing interval values
+int_95
+
+#Calculated intervals regularly.
+# Calculating the 95% intervals for the model forecasts
+dataforecast_hilo <- dataforecast%>% hilo()
+
+# Output model interval values
+dataforecast_hilo$`95%`[1]
+
+```
+
+
+##Problem 4a
+
+Alpha = 0.322
+l0 = 100646.6
+
+The forecasted value for 4 months is the same all through. Value = 95186.56
+
+##Problem 4b
+
+The values are pretty similar for the one manually calculated and the one generated from R.
+However, the R generated calculated values have a slightly higher 95% confidence intervals. 
+```{r}
+#Problem 5a - goog stock data 
+library(forecast)
+GoogStock.data <- read.csv(file = 'goog_stock.csv', header = TRUE)
+GoogStock.ts <- ts(GoogStock.data$x)
+goog.train <- window(GoogStock.ts, end = 900)
+goog.test <- window(GoogStock.ts, start = 901)
+ses <- ets(goog.train, model = "ANN", alpha = 0.2)
+ses
+ses.pred <-forecast(ses, h = 100, level = 0)
+ses.pred
+accuracy(ses.pred, goog.test )
+
+#Problem 5c - incomplete
+for (i in 0:0.4) {
+
+  RMSE[i] <- mean(abs(percent.error))
+}
+  
+
+```
+## Problem 5b
+The predicted value is constant all through unlike that of the goog test observations. The value is 768. The RMSE for the predicted value is 14.2. 
+
+

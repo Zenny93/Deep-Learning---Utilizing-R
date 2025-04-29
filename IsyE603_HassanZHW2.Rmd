@@ -1,0 +1,113 @@
+---
+Name: "Zanub Hassan"
+title: "IsyE 603 HW2"
+output: html_notebook
+---
+
+
+```{r}
+#Problem 1 - Estimating sample mean and sample standard dev
+#Creating the data
+v <- c(96, 102, 104, 108, 126, 128, 150, 156)
+v
+#Sample mean
+mean(v)
+#Sample stdev
+sd(v)
+```
+```{r}
+#problem 2 - Plot histogram from csv data
+df<- read.csv(file = 'h2p3.csv', header = FALSE)
+hist(df$V1, breaks = 10)
+```
+##Problem 2 written answer
+The histogram has a bell shape which resembles a normal distribution.
+```{r}
+#Problem 3- probability
+integrand1<-function(x){4*(x-11.75)}
+#Note we also integrate from -inf to 12 but that equals 0 beacuse f(x) = 0 for anything that is not in the given boundary for f(x)
+#firstfunc<-integrate(integrand1,lower = -Inf, upper = 12) = 0
+func<-integrate(integrand1,lower = 11.75, upper = 12)
+func
+```
+## Problem 4
+probability that variable is larger than 4.5 or smaller than -2.5
+mean = 1
+standard dev = 1
+
+z =(x - mean)/stdev
+#using the formula above
+
+P(x > 4.5) = (4.5-1)/1 = 3.5
+So we look for the value of 3.0 under 5 in the z norm table
+= 0.99886
+The z score table normally returns for x less than a value but this time around the function is asking for x > 4.5 therefore to get the  probability we subtract the value we got from the table from unity
+= 1-0.99886 = 0.00114
+
+ P(X < -2.5) = (-2.5 -1)/1 = -3.5
+ so we look for the value of -3.0 under 5 in the z norm table
+ = 0.00114
+  Therefore the probability that variable is larger than 4.5 or less than -2.5 is 0.00114.
+  
+```{r}
+#Problem 5a - autocorrelation for lag 1, 2, 3
+library(tseries)
+x <- c(482, 490, 491, 495, 499, 499, 503, 507, 509, 510)
+acf(x,lag.max = 3, pl = FALSE)
+#Problem 5b
+acf(x,lag.max = 3)
+```
+## Problem  5b - written answer
+From the plot above, since the autocorrelation spike at 1 rises above the dash line, we can say it is significant. However, the autocorrelation is not significant for 2 and 3 since the spikes are not above the dashed lines.
+
+## Problem 6 - fpp3 book chapter 2 problem 10
+Matching the time series plot to the autocorrelation plot
+(1,B),  (3,D), (2,A), (4,C)
+
+```{r}
+#Problem 7a - computing a time series plot
+library(tidyverse)
+library(dplyr)
+df1<- read.csv(file = 'SouvenirSales.csv', header = TRUE)
+df1_ts=ts(df1$Sales,start=c(1995,1), frequency=12)
+plot(df1_ts, xlab ="Time", ylab = "Sales", main ="Time series plot of Sales vs Time")
+
+#Problem 7b -change  xy into a log scale
+plot.ts(df1_ts,xlab ="Time", ylab = "Sales", log = "xy", main = "logarithmic Time series Plot ")
+
+
+```
+## Problem 7b and C - written
+7b) Plot b is more linear (logarithmic plot)
+
+7c)There is an upward trend in the data based on both plots
+  
+```{r}
+#Problem 8
+library(fpp3)
+library(ggplot2)
+#Box cox transformation for Tobacco in aus_production data of fpp3
+#Step 1 is to find lambda
+lambda <- aus_production %>%
+  features(Tobacco, features = guerrero) %>%
+pull(lambda_guerrero)
+lambda
+
+aus_production %>%
+  autoplot(box_cox(Tobacco, lambda)) 
+```
+```{r}
+#Problem 9 - Conducting STL decomposition for Canadian Gas data in fpp3
+library(fpp3)
+canadian_gas %>%
+  model(
+    STL(Volume ~ trend(window = 7) +    #Volume parameter comes from canadian_gas
+          season(window = "periodic"),
+        robust = TRUE)) %>%
+  components() %>%
+  autoplot()
+
+```
+
+ 
+

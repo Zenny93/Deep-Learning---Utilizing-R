@@ -1,0 +1,707 @@
+---
+title: "R Notebook"
+output:   
+  html_document:
+    df_print: paged
+---
+
+ISyE 603
+Course Project
+Group 1
+
+
+1. Load Libraries and Set Directory for files with stock price data.
+
+```{r setup, include=TRUE, cache=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library('readxl')
+library(forecast)
+library(tensorflow)
+library(keras)
+library(dplyr)
+library(ISLR)
+library("caret")
+library("pROC")
+library(matrixStats)
+library(fastDummies)
+library(tidyverse)
+library(xts)
+library(tibbletime)
+library(tseries)
+
+setwd("C:/Users/mnaje/OneDrive/Documents/ISyE 603/Course Project")
+
+
+```
+
+
+2. Load data for each of the three stocks. 
+
+```{r}
+
+data_Apple = read.csv('AAPL.csv', header = TRUE)
+data_Netflix = read.csv('NETFLIX.csv', header = TRUE)
+data_Tesla = read.csv('TSLA.csv', header = TRUE)
+
+```
+
+
+3. Convert the data for each of the three stocks into a weekly time series. Use data starting with the first trading session of 2014.
+
+Reference: https://community.rstudio.com/t/problem-with-converting-daily-stock-series-into-monthly-ones/3923
+```{r}
+
+#Apple
+dates1 = as.Date(data_Apple$Date)
+data_Apple$Date = dates1
+
+data_Apple_Filter = filter(data_Apple, Date >= as.Date("2014-01-02"), Date <= as.Date("2021-12-31"))
+
+data_Apple_Weekly = data_Apple_Filter %>%
+  as_tbl_time(Date) %>%
+  mutate(Date = collapse_index(Date,"weekly")) %>%
+  group_by(Date) %>%
+  summarize(
+    Open = first(Open),
+    High = max(High),
+    Low = min(Low),
+    Close = last(Close),
+    Adj.Close = last(Adj.Close),
+    Volume = sum(Volume)
+  )
+
+apple_ts = ts(data_Apple_Weekly$Close, start = c(2014,1), end = c(2021, 52), freq=52)
+
+
+#Netflix
+dates2 = as.Date(data_Netflix$Date, format = "%m/%d/%Y")
+data_Netflix$Date = dates2
+
+data_Netflix_Filter = filter(data_Netflix, Date >= as.Date("2014-01-02"), Date <= as.Date("2021-12-31"))
+
+data_Netflix_Weekly = data_Netflix_Filter %>%
+  as_tbl_time(Date) %>%
+  mutate(Date = collapse_index(Date,"weekly")) %>%
+  group_by(Date) %>%
+  summarize(
+    High = max(High),
+    Low = min(Low),
+    Open = first(Open),
+    Close = last(Close),
+    Volume = sum(Volume),
+    Adj.Close = last(Adj.Close)
+  )
+
+netflix_ts = ts(data_Netflix_Weekly$Close, start = c(2014,1), end = c(2021, 52), freq=52)
+
+
+#Tesla
+dates3 = as.Date(data_Tesla$Date)
+data_Tesla$Date = dates3
+
+data_Tesla_Filter = filter(data_Tesla, Date >= as.Date("2014-01-02"), Date <= as.Date("2021-12-31"))
+
+data_Tesla_Weekly = data_Tesla_Filter %>%
+  as_tbl_time(Date) %>%
+  mutate(Date = collapse_index(Date,"weekly")) %>%
+  group_by(Date) %>%
+  summarize(
+    Open = first(Open),
+    High = max(High),
+    Low = min(Low),
+    Close = last(Close),
+    Adj.Close = last(Adj.Close),
+    Volume = sum(Volume)
+  )
+
+tesla_ts = ts(data_Tesla_Weekly$Close, start = c(2014,1), end = c(2021, 52), freq=52)
+
+```
+
+
+4. Plot the time series decomposition for each of the three stocks, and remove any trends apparent from the time series decomposition using various types of differencing. Plot the autocorrelation and partial autocorrelation for the final differenced series. 
+
+```{r}
+
+#Apple
+apple_decomp = decompose(apple_ts)
+plot(apple_decomp)
+
+```
+
+
+```{r}
+
+#Apple
+
+plot(apple_ts,type='l',xlab='Time',ylab='Weekly Closing Price
+Price for Apple Stock (US$)',main='Weekly Closing Stock Price of Apple')
+
+apple_data_d1=diff(data_Apple_Weekly$Close)
+
+apple_data_d2 = diff(apple_data_d1)
+
+apple_data_log=diff(log(data_Apple_Weekly$Close))
+
+apple_data_sd=diff(sqrt(data_Apple_Weekly$Close))
+
+#par(mfrow=c(4,1))
+plot(apple_data_d1,type='l',xlab='Time',ylab='Difference', main='First Degree Differencing on Raw Data')
+plot(apple_data_d2,type='l',xlab='Time',ylab='Difference', main='Second Degree Differencing on Raw Data')
+plot(apple_data_log,type='l',xlab='Time',ylab='Difference',main='First 
+Degree Differencing on Logged Data')
+plot(apple_data_sd,type='l',xlab='Time',ylab='Difference',main='First 
+Degree Differencing on Square-root Data')
+
+#par(mfrow=c(2,1))
+acf(apple_data_d2,main='Autocorrelation Function of the First Degree Differencing on the Log of the Data')
+pacf(apple_data_d2,main='Partial Autocorrelation Function of the First Degree Differencing on the Log of the Data')
+
+#Augmented Dickey-Fuller Test on the Original Data
+adf.test(apple_ts)
+
+#Augmented Dickey-Fuller Test on the First Degree Differencing on the Log of the Data
+adf.test(apple_data_d2)
+
+
+```
+
+
+```{r}
+
+#Netflix
+netflix_decomp = decompose(netflix_ts)
+plot(netflix_decomp)
+
+```
+
+
+```{r}
+
+#Nexflix
+
+plot(netflix_ts,type='l',xlab='Time',ylab='Weekly Closing Price
+Price for Netflix Stock (US$)',main='Weekly Closing Stock Price of Netflix')
+
+netflix_data_d1=diff(data_Netflix_Weekly$Close)
+
+netflix_data_d2=diff(netflix_data_d1)
+
+netflix_data_log=diff(log(data_Netflix_Weekly$Close))
+
+netflix_data_sd=diff(sqrt(data_Netflix_Weekly$Close))
+
+#par(mfrow=c(4,1))
+plot(netflix_data_d1,type='l',xlab='Time',ylab='Difference', main='First Degree Differencing on Raw Data')
+plot(netflix_data_d2,type='l',xlab='Time',ylab='Difference', main='Second Degree Differencing on Raw Data')
+plot(netflix_data_log,type='l',xlab='Time',ylab='Difference',main='First 
+Degree Differencing on Logged Data')
+plot(netflix_data_sd,type='l',xlab='Time',ylab='Difference',main='First 
+Degree Differencing on Square-root Data')
+
+#par(mfrow=c(2,1))
+acf(netflix_data_log,main='Autocorrelation Function of the First Differences')
+pacf(netflix_data_log,main='Partial Autocorrelation Function of the First Differences')
+
+#Augmented Dickey-Fuller Test on the Original Data
+adf.test(netflix_ts)
+
+#Augmented Dickey-Fuller Test on the First Degree Differencing on the Log of the Data
+adf.test(netflix_data_log)
+
+```
+
+
+```{r}
+#Tesla
+
+tesla_decomp = decompose(tesla_ts)
+plot(tesla_decomp)
+
+```
+
+
+```{r}
+
+#Tesla
+
+plot(tesla_ts,type='l',xlab='Time',ylab='Weekly Closing Price
+Price for Tesla Stock (US$)',main='Weekly Closing Stock Price of Tesla')
+
+tesla_data_d1=diff(data_Tesla_Weekly$Close)
+
+tesla_data_d2=diff(tesla_data_d1)
+
+tesla_data_log=diff(log(data_Tesla_Weekly$Close))
+
+tesla_data_sd=diff(sqrt(data_Tesla_Weekly$Close))
+
+#par(mfrow=c(4,1))
+plot(tesla_data_d1,type='l',xlab='Time',ylab='Difference', main='First Degree Differencing on Raw Data')
+plot(tesla_data_d2,type='l',xlab='Time',ylab='Difference', main='Second Degree Differencing on Raw Data')
+plot(tesla_data_log,type='l',xlab='Time',ylab='Difference',main='First 
+Degree Differencing on Logged Data')
+plot(tesla_data_sd,type='l',xlab='Time',ylab='Difference',main='First 
+Degree Differencing on Square-root Data')
+
+#par(mfrow=c(2,1))
+acf(tesla_data_log,main='Autocorrelation Function of the First Differences')
+pacf(tesla_data_log,main='Partial Autocorrelation Function of the First Differences')
+
+#Augmented Dickey-Fuller Test on the Original Data
+adf.test(tesla_ts)
+
+#Augmented Dickey-Fuller Test on the First Degree Differencing on the Log of the Data
+adf.test(tesla_data_log)
+
+```
+
+
+5. Select the best model for the data using the last year (2021) as the validation set and the years 2014 through 2020 as the training set.  
+
+```{r}
+#Apple
+valid_len = 52
+train_len = length(apple_ts) - valid_len
+
+apple_train = window(apple_ts, start = c(2014,1), end = c(2014,train_len))
+apple_valid = window(apple_ts, start = c(2014, train_len + 1), end = c(2014, train_len + valid_len))
+
+
+# TSLM
+lm_apple_train = tslm(apple_train ~ trend + season)
+lm_apple_train
+par(mfrow = c(1,2))
+
+acf(lm_apple_train$residuals, main = "tslm acf for Apple")
+pacf(lm_apple_train$residuals, main = "tslm pcf for Apple")
+
+# ARIMA
+aa_apple_train = auto.arima(apple_train)
+aa_apple_train
+
+par(mfrow = c(1,2))
+acf(aa_apple_train$residuals, main = "Arima acf for Apple")
+pacf(aa_apple_train$residuals, main = "Arima pcf for Apple")
+
+## Neural Net
+## seasonal lag as 26
+nn_apple_train = nnetar(apple_train)
+nn_apple_train
+
+
+par(mfrow = c(1,2))
+acf(nn_apple_train$residuals, main = "NN acf for Apple", na.action = na.pass)
+pacf(nn_apple_train$residuals, main = "NN pcf for Apple",  na.action = na.pass)
+
+# Predictions for validation period
+tslm_apple_pred <- forecast(lm_apple_train,h=valid_len)
+arima_apple_pred <- forecast(aa_apple_train,h=valid_len)
+nn_apple_pred <- forecast(nn_apple_train,h=valid_len)
+
+# Predictions for validation period plus one year
+tslm_apple_pred_1 <- forecast(lm_apple_train,h=(valid_len+52))
+arima_apple_pred_1 <- forecast(aa_apple_train,h=(valid_len+52))
+nn_apple_pred_1 <- forecast(nn_apple_train,h=(valid_len+52))
+
+
+par(mfrow = c(1,1))
+plot(apple_train, col="black", ylab = "Stock Price (US$)")
+lines(tslm_apple_pred$fitted, col="blue")
+lines(arima_apple_pred$fitted, col="green")
+lines(nn_apple_pred$fitted, col="red")
+
+legend("topleft",c("Actual","TSLM", "ARIMA", "NN"),col=c("black","blue", "green", "Red"), lty = 1)
+
+```
+
+
+```{r}
+
+x = 1/12
+y = 2022 - x
+
+plot(apple_valid, xlab = "2021", ylab = "Stock Price (US$)", col="black", main = "Forecasted Apple Stock Price for Validation Period", lwd = 2, xaxt="n")
+axis(1, at=seq(2021, y, x), labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+lines(arima_apple_pred$mean, col="green")
+
+```
+
+
+```{r}
+
+tslm_apple_pred_1
+arima_apple_pred_1
+nn_apple_pred_1
+
+tslm_apple_pred_1 %>%
+  autoplot()
+
+arima_apple_pred_1 %>%
+  autoplot()
+
+nn_apple_pred_1 %>%
+  autoplot()
+
+```
+
+
+```{r}
+# Training Accuracy
+accuracy(tslm_apple_pred$fitted,apple_train)
+accuracy(arima_apple_pred$fitted,apple_train)
+accuracy(nn_apple_pred$fitted,apple_train)
+
+```
+
+
+```{r}
+# Pred Accuracy
+accuracy(tslm_apple_pred$mean,apple_valid)
+accuracy(arima_apple_pred$mean,apple_valid)
+accuracy(nn_apple_pred$mean,apple_valid)
+```
+
+
+```{r}
+# Residuals
+plot(tslm_apple_pred$residuals, col="black")
+lines(arima_apple_pred$residuals, col="green")
+lines(nn_apple_pred$residuals, col="red")
+
+legend("top",c("TSLM", "ARIMA", "NN"),col=c("black", "green", "Red"), lty = 1)
+
+```
+
+
+```{r}
+#Multi-Step Re-estimation Using ARIMA model (use all of the data preceding each observation, both training and test data, to compute the forecasted values)
+
+h = 1 #steps ahead
+n = valid_len - h + 1
+apple_fit = auto.arima(apple_train)
+apple_fc = ts(numeric(n), start=2021+(h-1)/52, frequency = 52)  
+for (i in 1:n)
+{
+  x = window(apple_ts, end = 2020.99 + (i-1)/52)
+  apple_refit = Arima(x, model = apple_fit)
+  apple_fc[i] = forecast(apple_refit, h = h)$mean[h]
+}
+
+
+accuracy(apple_fc,apple_valid)
+
+```
+
+
+```{r}
+x = 1/12
+y = 2022 - x
+
+plot(apple_valid, xlab = "2021", ylab = "Stock Price (US$)", col="black", main = "Forecasted Apple Stock Price for Validation Period Using 1-Step Re-Estimation", lwd = 2, xaxt="n")
+axis(1, at=seq(2021, y, x), labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+lines(apple_fc, col="green")
+
+
+```
+Reference: https://robjhyndman.com/hyndsight/rolling-forecasts/
+
+
+```{r}
+
+#Netflix
+valid_len = 52
+train_len = length(netflix_ts) - valid_len
+
+netflix_train = window(netflix_ts, start = c(2014,1), end = c(2014,train_len))
+netflix_valid = window(netflix_ts, start = c(2014, train_len + 1), end = c(2014, train_len + valid_len))
+
+
+# TSLM
+lm_netflix_train = tslm(netflix_train ~ trend + season)
+lm_netflix_train
+par(mfrow = c(1,2))
+
+acf(lm_netflix_train$residuals, main = "tslm acf for Netflix")
+pacf(lm_netflix_train$residuals, main = "tslm pcf for Netflix")
+
+# ARIMA
+aa_netflix_train = auto.arima(netflix_train)
+aa_netflix_train
+
+par(mfrow = c(1,2))
+acf(aa_netflix_train$residuals, main = "Arima acf for Netflix")
+pacf(aa_netflix_train$residuals, main = "Arima pcf for Netflix")
+
+## Neural Net
+## seasonal lag as 26
+nn_netflix_train = nnetar(netflix_train)
+nn_netflix_train
+
+
+par(mfrow = c(1,2))
+acf(nn_netflix_train$residuals, main = "NN acf for Netflix", na.action = na.pass)
+pacf(nn_netflix_train$residuals, main = "NN pcf for Netflix",  na.action = na.pass)
+
+# Predictions for validation period
+tslm_netflix_pred <- forecast(lm_netflix_train,h=valid_len)
+arima_netflix_pred <- forecast(aa_netflix_train,h=valid_len)
+nn_netflix_pred <- forecast(nn_netflix_train,h=valid_len)
+
+# Predictions for validation period plus one year
+tslm_netflix_pred_1 <- forecast(lm_netflix_train,h=(valid_len+52))
+arima_netflix_pred_1 <- forecast(aa_netflix_train,h=(valid_len+52))
+nn_netflix_pred_1 <- forecast(nn_netflix_train,h=(valid_len+52))
+
+
+par(mfrow = c(1,1))
+plot(netflix_train, col="black", ylab = "Stock Price (US$)")
+lines(tslm_netflix_pred$fitted, col="blue")
+lines(arima_netflix_pred$fitted, col="green")
+lines(nn_netflix_pred$fitted, col="red")
+
+legend("topleft",c("Actual","TSLM", "ARIMA", "NN"),col=c("black","blue", "green", "Red"), lty = 1)
+
+```
+
+
+```{r}
+
+x = 1/12
+y = 2022 - x
+
+plot(netflix_valid, xlab = "2021", ylab = "Stock Price (US$)", col="black", main = "Forecasted Netflix Stock Price for Validation Period", lwd = 2, xaxt="n")
+axis(1, at=seq(2021, y, x), labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+lines(arima_netflix_pred$mean, col="green")
+
+```
+
+
+```{r}
+
+tslm_netflix_pred_1
+arima_netflix_pred_1
+nn_netflix_pred_1
+
+tslm_netflix_pred_1 %>%
+  autoplot()
+
+arima_netflix_pred_1 %>%
+  autoplot()
+
+nn_netflix_pred_1 %>%
+  autoplot()
+
+```
+
+
+```{r}
+# Training Accuracy
+accuracy(tslm_netflix_pred$fitted,netflix_train)
+accuracy(arima_netflix_pred$fitted,netflix_train)
+accuracy(nn_netflix_pred$fitted,netflix_train)
+
+```
+
+
+```{r}
+# Pred Accuracy
+accuracy(tslm_netflix_pred$mean,netflix_valid)
+accuracy(arima_netflix_pred$mean,netflix_valid)
+accuracy(nn_netflix_pred$mean,netflix_valid)
+```
+
+
+```{r}
+# Residuals
+plot(tslm_netflix_pred$residuals, col="black")
+lines(arima_netflix_pred$residuals, col="green")
+lines(nn_netflix_pred$residuals, col="red")
+
+legend("top",c("TSLM", "ARIMA", "NN"),col=c("black", "green", "Red"), lty = 1)
+
+```
+
+
+```{r}
+#Multi-Step Re-estimation Using ARIMA model (use all of the data preceding each observation, both training and test data, to compute the forecasted values)
+
+h = 1 #steps ahead
+n = valid_len - h + 1
+netflix_fit = auto.arima(netflix_train)
+netflix_fc = ts(numeric(n), start=2021+(h-1)/52, frequency = 52)  
+for (i in 1:n)
+{
+  x = window(netflix_ts, end = 2020.99 + (i-1)/52)
+  netflix_refit = Arima(x, model = netflix_fit)
+  netflix_fc[i] = forecast(netflix_refit, h = h)$mean[h]
+}
+
+
+accuracy(netflix_fc,netflix_valid)
+
+```
+
+
+```{r}
+x = 1/12
+y = 2022 - x
+
+plot(netflix_valid, xlab = "2021", ylab = "Stock Price (US$)", col="black", main = "Forecasted Netflix Stock Price for Validation Period Using 1-Step Re-Estimation", lwd = 2, xaxt="n")
+axis(1, at=seq(2021, y, x), labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+lines(netflix_fc, col="green")
+
+
+```
+Reference: https://robjhyndman.com/hyndsight/rolling-forecasts/
+
+
+```{r}
+
+#Tesla
+valid_len = 52
+train_len = length(tesla_ts) - valid_len
+
+tesla_train = window(tesla_ts, start = c(2014,1), end = c(2014,train_len))
+tesla_valid = window(tesla_ts, start = c(2014, train_len + 1), end = c(2014, train_len + valid_len))
+
+
+# TSLM
+lm_tesla_train = tslm(tesla_train ~ trend + season)
+lm_tesla_train
+par(mfrow = c(1,2))
+
+acf(lm_tesla_train$residuals, main = "tslm acf for Tesla")
+pacf(lm_tesla_train$residuals, main = "tslm pcf for Tesla")
+
+# ARIMA
+aa_tesla_train = auto.arima(tesla_train)
+aa_tesla_train
+
+par(mfrow = c(1,2))
+acf(aa_tesla_train$residuals, main = "Arima acf for Tesla")
+pacf(aa_tesla_train$residuals, main = "Arima pcf for Tesla")
+
+## Neural Net
+## seasonal lag as 26
+nn_tesla_train = nnetar(tesla_train)
+nn_tesla_train
+
+
+par(mfrow = c(1,2))
+acf(nn_tesla_train$residuals, main = "NN acf for Tesla", na.action = na.pass)
+pacf(nn_tesla_train$residuals, main = "NN pcf for Tesla",  na.action = na.pass)
+
+# Predictions for validation period
+tslm_tesla_pred <- forecast(lm_tesla_train,h=valid_len)
+arima_tesla_pred <- forecast(aa_tesla_train,h=valid_len)
+nn_tesla_pred <- forecast(nn_tesla_train,h=valid_len)
+
+# Predictions for validation period plus one year
+tslm_tesla_pred_1 <- forecast(lm_tesla_train,h=(valid_len+52))
+arima_tesla_pred_1 <- forecast(aa_tesla_train,h=(valid_len+52))
+nn_tesla_pred_1 <- forecast(nn_tesla_train,h=(valid_len+52))
+
+
+par(mfrow = c(1,1))
+plot(tesla_train, col="black", ylab = "Stock Price (US$)")
+lines(tslm_tesla_pred$fitted, col="blue")
+lines(arima_tesla_pred$fitted, col="green")
+lines(nn_tesla_pred$fitted, col="red")
+
+legend("topleft",c("Actual","TSLM", "ARIMA", "NN"),col=c("black","blue", "green", "Red"), lty = 1)
+
+```
+
+
+```{r}
+x = 1/12
+y = 2022 - x
+
+plot(tesla_valid, xlab = "2021", ylab = "Stock Price (US$)", col="black", main = "Forecasted Tesla Stock Price for Validation Period", lwd = 2, xaxt="n")
+axis(1, at=seq(2021, y, x), labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+lines(arima_tesla_pred$mean, col="green")
+```
+
+
+```{r}
+
+tslm_tesla_pred_1
+arima_tesla_pred_1
+nn_tesla_pred_1
+
+tslm_tesla_pred_1 %>%
+  autoplot()
+
+arima_tesla_pred_1 %>%
+  autoplot()
+
+nn_tesla_pred_1 %>%
+  autoplot()
+
+```
+
+
+```{r}
+# Training Accuracy
+accuracy(tslm_tesla_pred$fitted,tesla_train)
+accuracy(arima_tesla_pred$fitted,tesla_train)
+accuracy(nn_tesla_pred$fitted,tesla_train)
+
+```
+
+
+```{r}
+# Pred Accuracy
+accuracy(tslm_tesla_pred$mean,tesla_valid)
+accuracy(arima_tesla_pred$mean,tesla_valid)
+accuracy(nn_tesla_pred$mean,tesla_valid)
+```
+
+
+```{r}
+# Residuals
+plot(tslm_tesla_pred$residuals, col="black")
+lines(arima_tesla_pred$residuals, col="green")
+lines(nn_tesla_pred$residuals, col="red")
+
+legend("top",c("TSLM", "ARIMA", "NN"),col=c("black", "green", "Red"), lty = 1)
+
+```
+
+
+```{r}
+#Multi-Step Re-estimation Using ARIMA model (use all of the data preceding each observation, both training and test data, to compute the forecasted values)
+
+h = 1 #steps ahead
+n = valid_len - h + 1
+tesla_fit = auto.arima(tesla_train)
+tesla_fc = ts(numeric(n), start=2021+(h-1)/52, frequency = 52)  
+for (i in 1:n)
+{
+  x = window(tesla_ts, end = 2020.99 + (i-1)/52)
+  tesla_refit = Arima(x, model = tesla_fit)
+  tesla_fc[i] = forecast(tesla_refit, h = h)$mean[h]
+}
+
+
+accuracy(tesla_fc,tesla_valid)
+
+```
+
+
+```{r}
+x = 1/12
+y = 2022 - x
+
+plot(tesla_valid, xlab = "2021", ylab = "Stock Price (US$)", col="black", main = "Forecasted Tesla Stock Price for Validation Period Using 1-Step Re-Estimation", lwd = 2, xaxt="n")
+axis(1, at=seq(2021, y, x), labels = c("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"))
+lines(tesla_fc, col="green")
+
+
+```
+Reference: https://robjhyndman.com/hyndsight/rolling-forecasts/
+
+
+
+

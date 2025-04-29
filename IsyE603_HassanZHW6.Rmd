@@ -1,0 +1,102 @@
+---
+Name: Zanub Hassan
+title: "Homework 6"
+output: html_notebook
+Date: "2022-04-07"
+---
+
+```{r}
+#Problem 2
+rm(list = ls())
+library(forecast)
+library(dplyr)
+library(ISLR)
+library("caret")
+library("pROC")
+#Problem 2a
+#Use the full data set to perform a logistic regression with Direction as the response and the five lag variables plus Volume as predictors
+
+logmodel <- glm(Direction ~ Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data= Smarket, family="binomial")
+summary(logmodel)
+
+
+#Problem 2b
+#Compute the confusion matrix and overall fraction of correct predictions. Use probability of 0.5 as the threshold.
+confusionMatrix(as.factor(ifelse(logmodel$fitted > 0.5, "Up", "Down")), as.factor(Smarket$Direction), positive = "Up")
+
+#Problem 2c
+#Using 2005 data as validation data and the rest as training data
+#Plot ROC of the prediction in (b) and obtain corresponding AUC
+roc_obj<-roc(as.factor(Smarket$Direction),logmodel$fitted)
+plot.roc(roc_obj,legacy.axes=TRUE)
+#auc == area under the curve
+auc(roc_obj)
+
+#Problem 2d
+#Use the training data to build a logistic regression model as that in (a)
+train.df = Smarket[Smarket$Year < 2005,]
+valid.df = Smarket[Smarket$Year > 2004,]
+logmodel2 <- glm(Direction ~ Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data= train.df, family="binomial")
+summary(logmodel2)
+
+#Problem 2e
+#Use the model in (d), compute the confusion matrix and overall fraction of correct predictions for the validation period. Use probability of 0.5 as the threshold
+#There is need to do a new predic to accomodate the valid period before computing the confusion matrix
+smark.pred = predict(logmodel2, type="response", newdata = valid.df)
+confusionMatrix(as.factor(ifelse(smark.pred> 0.5, "Up", "Down")), as.factor(valid.df$Direction), positive = "Up")
+
+#Problem 2f
+#Plot ROC of the prediction in (e) and obtain corresponding AUC for the validation period
+roc_obj1<-roc(as.factor(valid.df$Direction), smark.pred)
+plot.roc(roc_obj1,legacy.axes=TRUE)
+auc(roc_obj1)
+```
+
+##Problem 2a - Written
+From the summary of the model it appears that none of them are statistically significant based on the p values.The p-values are relatively large.
+```{r}
+library(forecast)
+#Problem 3
+# Consider the AustralianWines.csv data. It includes  monthly sales of six types of Australian wines (red, rose, sweet white, dry white, sparkling, and fortified) for 1980-1994. Partition the fortified data using the period until December 1993 as the training period and the rest as the validation period
+
+#Problem 3a
+#Run a neural network using R’s nnetar with 11 nonseasonal lags (i.e., p = 11) on training data. Leave all other arguments at their default. Show the model summary.
+
+Wines.data <- read.csv("AustralianWines.csv")
+Wines.ts <- ts(Wines.data$Fortified, start = c(1980,1), end = c(1994, 12),freq=12)
+fixed.nValid <- 12
+# since we have a fixed valid the rest will be training. 
+fixed.nTrain <- length(Wines.ts) - fixed.nValid
+#training period
+Winestrain.ts <- window(Wines.ts, start=c(1980,1), end = c(1980, fixed.nTrain))
+#validation period
+Winesvalid.ts <- window(Wines.ts, start = c(1980, fixed.nTrain + 1), end = c(1980, fixed.nTrain + fixed.nValid))
+
+nnmodel <- nnetar(Winestrain.ts,p=11,P=1)
+nnmodel
+summary(nnmodel)
+
+#Problem 3b
+#Create a time plot for the actual and forecasted series for the training period
+plot(Winestrain.ts)
+lines(nnmodel$fitted, col="red")
+
+#Problem 3c
+#Create also a time plot of the forecast errors for the training period
+plot(Winestrain.ts-nnmodel$fitted)
+
+#Problem 3d
+#Use the neural network to forecast sales for each month in the validation period. Plot the observed and predicted values for validation period.
+WinesPred <- forecast(nnmodel, h=fixed.nValid)
+WinesPred$mean
+
+plot(Winesvalid.ts)
+lines(WinesPred$mean, col="red")
+
+#Problem 3e
+#Obtain forecast accuracy for the validation period.
+accuracy(WinesPred, Winesvalid.ts)
+```
+
+
+

@@ -1,0 +1,223 @@
+---
+author: "Zanub Hassan"
+title: "Netflix Data "
+output: html_notebook
+---
+
+```{r}
+Netflix.data <-read.csv("NETFLIX.csv")
+
+Netflix.ts <- ts(Netflix.data$Close, start = c(2014,1), end = c(2021, 52),freq= 52)
+
+plot(Netflix.ts, xlab='Time',ylab='ClosePrices',main='Netflix Stock Weekly Close Prices')
+
+#The Close price plot increase and decrease for a period of time . Then it increased consistently for a period of time before finally decreasing again.
+
+acf(Netflix.ts)
+pacf(Netflix.ts)
+```
+#The netlix data can be said to contain both trend and seasonality based on the time series plot of the raw data.The Acf plot decreases as the lag increases. The plot also shows a significant correlation across the lags. That is the correlations of the lags look almost the same. This is usually noticeable in datas that contain a trend.
+
+```{r}
+#Estimating a time series decomposition on data
+#additive decomposition
+library(forecast)
+x <- decompose(Netflix.ts)
+#Plot of the residuals (Random - what remains after trend and seasonality is removed)
+y<-plot(x$random)
+
+#STL decomposition
+stl_Netflixdata <- stl(Netflix.ts, s.window = 2, t.window = 12, robust = TRUE)
+autoplot(stl_Netflixdata)
+
+
+```
+
+#The decomposition shows that there is some trend from 2018 to 2019. Then there is a big arch from 2019 - 2020 before trend continues in a normal way in 2021-2022. It is understandable that is is a weird trend between 2019 and 2022 due to covid 19.There appears to be some sort of seasonality in the data. The variance of the residuals seems to remain the same except in some cases.
+
+```{r}
+library(zoo)
+library(forecast)
+#Simulating the random walk of the stock dataset
+#Running auto arima function on data
+arima.model<- auto.arima(Netflix.ts, allowdrift = T)
+arima.model
+
+#Simulating a ramdom walk model with drift
+#Zee 
+RW_drift<-Arima(Netflix.ts, order=c(0,1,1), include.constant = T)
+#RW_drift <- arima.sim(model= list(order = c(0, 1, 1)), n=Netflix.ts, mean=1,sd=5)
+plot(RW_drift$residuals, main="Random Walk with Drift")
+```
+
+#Using the auto, arima  function gives us a an ARIMA (0,1,1) model. ARIMA(0,1,1) is a random walk with an MA(1) on top.
+
+```{r}
+#Checking the Stationarity of the Random walk
+library(zoo)
+library(forecast)
+library(tseries)
+#Most stock data follow a random walk with a drift because they follow a upward and downward trend
+adf.test(Netflix.ts)
+```
+#The ADF test is used to check the null hypothesis of non-stationarity. The p-value is 0.7294 from the test above. This value is larger than 0.05. Therefore, we can say this stock data is non stationary(a random walk).
+```{r}
+#Since our time series data has a non-stationary characteristics(i.e has a trend), doing a differencing is needed inorder to obtain a new series that is more stationary 
+
+#Applying differencing to the data (First Degree Differencing)
+
+diff1<-diff(Netflix.ts )
+#Differencing on log of raw data
+logdiff1<-diff(log(Netflix.ts ))
+#Differencing  on Sqrt of Raw data
+sdiff1<-diff(sqrt(Netflix.ts))
+ 
+#Plots of the firt degree differencing
+
+plot(diff1,type='l',xlab='Time',ylab='Difference',main='First Degree
+Differencing on Raw Data')
+
+plot(logdiff1,type='l',xlab='Time',ylab='Difference',main='First Degree
+Differencing on Log Raw Data')
+
+plot(sdiff1,type='l',xlab='Time',ylab='Difference',main='First Degree
+Differencing on Sqrt Raw Data')
+
+#Auto correlation plots on first degree differenced data
+par(mfrow=c(1,2))
+acf(sdiff1, lag.max = 20, main='Autocorrelation Plot of First difference')
+pacf(sdiff1,lag.max = 20, main=' Partial Autocorrelation Plot of First difference')
+```
+#Ater the series is differenced, we noticed that the mean of the three difference plots all have a mean that is constant and nearly 0.There also appears to be some correlation in the PACF plot
+```{r}
+#Taking the ADF test of the fifferenced variables
+library(zoo)
+library(forecast)
+library(tseries)
+
+adf.test(diff1)
+adf.test(logdiff1)
+adf.test(sdiff1)
+```
+#After differecing, the adf test of the differenced series shows that the p-values are less than 0.05 showing that new series obtained from differencing are stationary.The log difference did not necessarily work.
+```{r}
+#Splitting the data into a training and test(valid) data set.
+fixed.nValid <- 52
+# since we have a fixed valid the rest will be training. 
+fixed.nTrain <- length(Netflix.ts) - fixed.nValid
+#training period
+NFLXtrain.ts <- window(Netflix.ts, end = c(2014, fixed.nTrain))
+
+#validation period
+NFLXvalid.ts <- window(Netflix.ts, start = c(2014, fixed.nTrain + 1))
+NFLXvalid.ts
+```
+#The data was split in a way that uses the data of the last year(2021) as the validation set and the rest is the training dataset.
+```{r}
+library(forecast)
+#Arima Model
+NFLXtrain_AR<-auto.arima(NFLXtrain.ts, allowdrift=TRUE)
+summary(NFLXtrain_AR)
+
+#Fitting the model gotten from auto.arima
+AR_NFLX <- Arima(NFLXtrain.ts, order=c(0,2,1))
+summary(AR_NFLX)
+
+```
+```{r}
+#Getting athe Acf and pacf plot for the fitted residual model
+par(mfrow = c(1,2))
+Acf(AR_NFLX$residuals, lag.max = 10, main = "Arima Acf")
+Pacf(AR_NFLX $residuals, lag.max = 10, main = "Arima Pacf")
+```
+
+```{r}
+library(forecast)
+#I used the model to forecast the validation period
+NFLXarima.pred <- forecast(AR_NFLX, h=fixed.nValid, level= 90)
+NFLXarima.pred
+# plot forecast for model
+
+g1 <- autoplot(NFLXarima.pred)
+g1
+
+#Accuracy of Training dataset
+accuracy(NFLXarima.pred$fitted, NFLXtrain.ts)
+#Accuracy of Validation dataset
+accuracy(NFLXarima.pred$mean, NFLXvalid.ts)
+```
+
+#The forecasted model has a downward trend. This shows that the Netflix stock will be down in the year 2022
+```{r}
+#HoltWint Method
+#Using the Holt Winters method for the training dataset
+NFLX.HW <-ets(NFLXtrain.ts, model = "ZZZ", alpha = 0.2, beta = 0.15, gamma = 0.05)
+NFLX.HW.pred <- forecast(NFLX.HW, h = fixed.nValid, level = 0)
+NFLX.HW.pred
+plot(NFLX.HW.pred, ylim = c(0, 1.4),  ylab = "Sales", xlab = "Time", bty = "l", xaxt = "n", xlim = c(2014,2022.25), main = "Quarterly Department Store Sales")
+
+#Accuracy of Training dataset
+accuracy(NFLX.HW.pred$fitted, NFLXtrain.ts)
+#Accuracy of Validation dataset
+accuracy(NFLX.HW.pred$mean, fixed.nValid)
+```
+
+```{r}
+#Regression Model
+NFLX.LM <- tslm(NFLXtrain.ts ~ trend + season)
+summary(NFLX.LM)
+par(mfrow = c(1,2))
+
+acf(NFLX.LM$residuals, main = "NFLXLM acf")
+pacf(NFLX.LM$residuals, main = "NFLXLM pcf")
+
+NFLX.LM.pred <- forecast(NFLX.LM,h=fixed.nValid)
+summary(NFLX.LM.pred)
+#Accuracy of Training dataset
+accuracy(NFLX.LM.pred$fitted,NFLXtrain.ts)
+#Accuracy of Validation dataset
+accuracy(NFLX.LM.pred$mean,NFLXvalid.ts)
+```
+```{r}
+library(forecast)
+#Using the neural network model
+#Using a seasonal lag of 26
+nnmodel <- nnetar(NFLXtrain.ts)
+nnmodel
+summary(nnmodel)
+
+par(mfrow = c(1,2))
+acf(nnmodel$residuals, main = "NN acf", na.action = na.pass)
+pacf(nnmodel$residuals, main = "NN pcf",  na.action = na.pass)
+
+NN.pred <- forecast(nnmodel,h=fixed.nValid)
+NN.pred 
+
+#Accuracy of Training dataset
+accuracy(NN.pred$fitted,NFLXtrain.ts)
+#Accuracy of Validation dataset
+accuracy(NN.pred$mean,NFLXvalid.ts)
+```
+
+```{r}
+# All plots in one for the fitted values using training set 
+par(mfrow = c(1,1))
+plot(NFLXtrain.ts, col="black")
+lines(NFLX.LM.pred$fitted, col="blue")
+lines(NFLXarima.pred$fitted, col="green")
+lines(NN.pred$fitted, col="red")
+lines(NFLX.HW.pred$fitted, col= "yellow")
+
+legend(x ="topleft",c("Actual","TSLM", "ARIMA", "NN", "HoltWint"),col=c("black","blue", "green", "Red", "Yellow"), lty = 1)
+```
+
+```{r}
+#All plot for the predicted residuals
+plot(NFLX.LM.pred$residuals, col="black")
+lines(NFLXarima.pred$residuals, col="green")
+lines(NN.pred$residuals, col="red")
+lines(NFLX.HW.pred$residuals, col="yellow")
+
+legend(x ="topright",c("TSLM", "ARIMA", "NN", "HoltWint"),col=c("black", "green", "Red", "yellow"), lty = 1)
+```
+

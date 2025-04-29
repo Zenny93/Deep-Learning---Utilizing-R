@@ -1,0 +1,227 @@
+---
+Name: "Zanub Hassan"
+title: "Isye603 HW4"
+Date: "March 8th, 2022"
+output: html_notebook
+
+---
+
+
+
+```{r}
+#Problem 1a - Plot Data and Find Regression Model Demand with temperarture as a predictor Variable
+#Demand is the response variable - what we wish to estimate / predict
+#Temp - is the predictor variable - What we used to predict.
+library(fpp3)
+library(ggplot2)
+library(forecast)
+jan14_vic_elec <- vic_elec %>%
+  filter(yearmonth(Time) == yearmonth("2014 Jan")) %>%
+  index_by(Date = as_date(Time)) %>%
+  summarise(                ##Aggregating the data based on total demand and max temperature
+    Demand = sum(Demand),
+    Temperature = max(Temperature)
+  )
+
+jan14_vic_elec %>%
+  gather("Variable", "Value", Demand, Temperature) %>%
+  ggplot(aes(x = Date, y = Value)) +
+  geom_line() +
+  facet_grid(vars(Variable), scales = "free_y")
+
+jan14_vic_elec %>%
+  ggplot(aes(x=Temperature, y=Demand)) +
+  geom_point() +
+  geom_smooth(method="lm", se=FALSE)
+
+#Estimating the regression
+fit <- jan14_vic_elec %>% model(TSLM(Demand ~ Temperature)) %>%
+  report()
+
+#Problem 1b- Plotting the residuals
+fit %>% gg_tsresiduals()
+
+#Problem 1c- forecasting electricity demand with a temp of 15 and comparing it to the forecast if 
+# temp = 35
+
+#Forecast of Electricity Demand at Temp = 15
+forecast_15 <-fit %>%
+  forecast(
+    new_data(jan14_vic_elec, 1) %>%
+      mutate(Temperature = 15)
+  ) #%>%
+forecast_15 # Printing the forecast
+
+forecast_15 %>% autoplot(jan14_vic_elec) # creating an autoplot at temp = 15
+
+#Forecast of Electricity Demand at Temp = 15
+forecast_35 <-fit %>%
+  forecast(
+    new_data(jan14_vic_elec, 1) %>%
+      mutate(Temperature = 35)
+  ) 
+forecast_35 #Printing the forecast
+forecast_35 %>% autoplot(jan14_vic_elec)  # creating an autoplot at temp = 15
+
+#fit %>% forecast(new_data(jan14_vic_elec, 1) %>% mutate(Temperature = 15)) %>%
+ # mutate(interval = hilo(.distribution, 80))
+
+#Problem 1d - Give prediction intervals for your forecast
+forecast_15_hilo <- forecast_15%>% hilo() #Extracting hi and lo value for the forecast 15 interval
+
+# Output model interval values for 95% interval for forecast at temp 15
+forecast_15_hilo$`95%`[1]
+
+# Output model interval values for 80% interval for forecast at temp 15
+forecast_15_hilo$`80%`[1]
+
+
+forecast_35_hilo <- forecast_35%>% hilo() #Extracting hi and lo value for the forecast 35 interval
+
+# Output model interval values for 95% interval for forecast at temp 35
+forecast_35_hilo$`95%`[1]
+
+# Output model interval values for 80% interval for forecast at temp 35
+forecast_35_hilo$`80%`[1]
+
+
+```
+
+## Problem 1a
+There is a positive slope because there exists a relation between temperature and the demand for electricity. The demand for electricity depends on the weather .So, warmer days might have higher electricity demeand due to the use of air conditioners. 
+
+## Problem 1b
+The model is adrequate. Howerver, there are a few outliers.
+
+## Problem 1c
+The forecast at a tempearture of 35 is higher than that of 15. I believe the models forecasted well since the values of the forecasted demands are still within the range of the values given in the original data.
+```{r}
+#Problem 2
+#Problem 2a - Plotting a time series plot for pre sept 11
+#The sept11 ts data (time series) has to first be split into pre and post sept 11
+library(dplyr)
+library(tidyverse)
+library(readxl) #reading an xls file in
+Sept11.data <- read_excel("Sept11Travel.xls") #read my file in as xls
+str(Sept11.data ) #Checking Structure of my data
+#Created a time series data before 911 which is between Jan 1990 to Aug 2001
+AirMiles.ts<-ts(Sept11.data$`Air RPM (000s)`, start = c(1990,1), end = c(2001, 8), frequency = 12)
+plot.ts(AirMiles.ts, ylim = c(30000000, 70000000),  ylab = "AirMiles", xlab = "Time", bty = "l", xaxt = "n", xlim = c(1990,2001.25), main = "Pre Event Air Time Series")
+axis(1, at = seq(1990, 2001, 1), labels = format(seq(1990, 2001, 1)))
+
+#Problem 2c
+library(forecast)
+nValid <- 36
+nTrain <- length(AirMiles.ts) - nValid
+Airtrain.ts <- window(AirMiles.ts, start = c(1990, 1), end = c(1990, nTrain))
+Airvalid.ts <- window(AirMiles.ts, start = c(1990, nTrain + 1), end = c(1990, nTrain + nValid))
+
+#Seasonally suppressed plot
+quarterly <- aggregate(Airtrain.ts,nfrequency=4, FUN=sum)
+plot(quarterly, bty="l")
+#Problem 2c(i)
+milesplot <- tslm(quarterly~trend)
+summary(milesplot)
+lines(milesplot$fitted, lwd=2)
+
+#Problem 2d(i)
+train.lm.trend.season <- tslm(Airtrain.ts~trend+I(trend^2)+season, lambda = 0)
+summary(train.lm.trend.season)
+
+train.lm.trend.season.pred <- forecast(train.lm.trend.season, h = nValid, level = 0)
+summary(train.lm.trend.season.pred)
+
+#Problem 2d(ii)
+train.lm.trend.season.residuals = log(Airtrain.ts)-log(train.lm.trend.season$fitted.values)
+#summary(train.lm.trend.season$residuals)
+
+#Problem 2e
+#For air
+AirMiles.ts.lm <- tslm(train.ts ~ trend, lambda = 0)
+plot.ts(AirMiles.ts, ylim = c(30000000, 70000000),  ylab = "AirMiles", xlab = "Time", bty = "l", xaxt = "n", xlim = c(1990,2001.25), main = "Pre Event Air Time Series")
+lines
+lines(AirMiles.ts.lm$fitted, lwd = 2, col = "blue")
+
+
+# plot(train.lm.trend.season.pred, ylim = c(30000000, 70000000),  ylab = "AirMiles", xlab = "Time", bty = "l", xaxt = "n", xlim = c(1990,2001.25), main = "", flty = 2)
+# axis(1, at = seq(1990, 2001, 1), labels = format(seq(1990, 2001, 1)))
+#lines(train.lm.trend.season.pred$fitted, lwd = 2, col = "blue")
+#plot(train.lm.trend.season)
+```
+## Problem 2a
+The following time series components are present from the plot
+Level
+Trend 
+Seasonality
+Random Noise
+
+## Problem 2b
+Linear regression model with dummy variable and trend will be adequate for forecasting this series because our data has both trend and seasonality.
+
+## Problem 2d(i)
+The statistical significance level for September and October coefficients are pretty close.
+
+
+
+
+```{r}
+#Problem 3b
+library(forecast)
+SouvenirSales.data <- read.csv(file ='SouvenirSales.csv', header = TRUE)
+#creating the data in a time series format spanning from  Jan 1995 to  Dec. 2001 using a freq of 12
+Sales.ts <- ts(SouvenirSales.data$Sales, start = c(1995,1), end = c(2001, 12), freq = 12)
+fixed.nValid <- 12
+# ssince we have a fixed valid the rest will be training. 
+fixed.nTrain <- length(Sales.ts) - fixed.nValid
+#training period
+train.ts <- window(Sales.ts, start = c(1995, 1), end = c(1995, fixed.nTrain))
+#validation period
+valid.ts <- window(Sales.ts, start = c(1995, fixed.nTrain + 1), end = c(1995, fixed.nTrain + fixed.nValid))
+
+##Running the regression for modelA- used only training period only
+Model_A <- tslm(train.ts ~ trend + season)
+summary(Model_A)
+
+#Problem 3c
+##Running the regression for modelB - using log as the output
+Model_B <- tslm(log(train.ts) ~ trend + season)
+summary(Model_B)
+
+
+#Problem 3c(iii) - using model b to forecast the sale for February 2002
+Feb2002_Forecast <-Model_B$coefficients["(Intercept)"] + Model_B$coefficients["trend"]*86 + Model_B$coefficients["season2"]
+
+exp(Feb2002_Forecast)
+
+#Problem 3d
+#Model A forecast
+Model_AForecast <- forecast(Model_A, h = fixed.nValid)
+accuracy(Model_AForecast$mean, valid.ts)
+
+#Model B forecast
+Model_BForecast <- forecast(Model_B, h = fixed.nValid)
+accuracy(exp(Model_BForecast$mean), valid.ts)
+```
+## Problem 3a
+From figure 6.14, there is seasonality and quadratic trend predictor. The total number of predictors is 12(1 for trend and 11 for seasonality).
+
+## Problem 3b
+i)From the coefficients December tends to have the highest average sales per year which might be due to the fact that is the holiday season.
+
+ii) The trend coefficient is (245.36). This shows that the average linear sales increase per month equals $245.36.
+
+## Problem 3c
+i) Exponential trend
+ii) The estimated trend coefficient of model b indicates that the sales increase by 2.112% on a monthly basis.
+iii) The forecasted sales for February 2002 is $17062
+
+## Problem 3d
+The RMSE for model B is smaller than that of model A. This makes it a better model for forecasting. Also, the MAPE of model B is 15.5 compared to the 26.7 for model A which is another reason why model B is the better model for foreacsting
+
+## Problem 3e
+I would model the influence of other variables on the sale to see how other external variables impact the sales.
+I would not separate the data into training and validation period because forecasting is not really necessary when studying the different components of sales.
+
+
+
+

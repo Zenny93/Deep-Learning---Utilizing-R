@@ -1,0 +1,260 @@
+---
+Name: Zanub Hassan
+title: "Homework 7"
+output: html_notebook
+Date: "2022-04-20"
+---
+
+ 
+
+```{r}
+library(ISLR)
+library(tidyverse)
+library(keras)
+library(fastDummies)
+library(caret)
+library(dplyr)
+library(tensorflow)
+library("pROC")
+
+#Problem 1a
+#Use Keras and the full data set to build a deep learning model with Direction as the response and the five lag variables plus Volume as predictors. You can choose the structure of the deep neural network (e.g., number of hidden layers and nodes on each layer)
+#Size and format of data frame
+xtrain <- scale(Smarket[,2:7])
+ytrain = Smarket[,9]
+ytrain <- to_categorical(ifelse(Smarket[,9]== "Up",1,0))
+
+# Network design
+ model <- keras_model_sequential()
+ model %>%
+# Input layer
+ layer_dense(units = 256, activation = "relu", input_shape = ncol(xtrain)) %>% 
+ layer_dropout(rate = 0.4) %>% 
+# Hidden layer
+ layer_dense(units = 75, activation = "relu") %>%
+# Output layer
+ layer_dropout(rate = 0.3) %>%
+ layer_dense(units = 2, activation = "sigmoid")
+ 
+ # Network config
+history <- model %>% compile(
+ loss = "binary_crossentropy",
+ optimizer = "adam",
+ metrics = c("accuracy")
+)
+# Running our data
+model %>% fit(
+ xtrain, ytrain, 
+ epochs = 100, 
+ batch_size = 50,
+ validation_split = 0.3
+)
+summary(model)
+
+#Problem 1b
+#Compute the confusion matrix and overall fraction of correct predictions of the model. Use probability of 0.5 as the threshold
+
+# Calculating accuracy
+predictions <- model %>% predict(xtrain)
+confusionMatrix(as.factor(ifelse(predictions[,2] > 0.5, "Up", "Down")), as.factor(Smarket$Direction), positive = "Up")
+
+#Problem 1c
+#Plot ROC of the prediction in (b) and obtain corresponding AUC
+roc_obj<-roc(as.factor(Smarket$Direction),(ifelse(predictions[,2] > 0.5, 1, 0)))
+plot.roc(roc_obj,legacy.axes=TRUE)
+#auc == area under the curve
+auc(roc_obj)
+```
+```{r}
+
+#Problem 1d
+#Using 2005 data as validation data and the rest as training data.
+#Use the training data to build a deep learning model as that in (a)
+train.df = Smarket[Smarket$Year < 2005,]
+valid.df = Smarket[Smarket$Year > 2004,]
+
+x_train <- scale(train.df[,2:7])
+y_train = train.df[,9]
+y_train <- to_categorical(ifelse(train.df[,9]== "Up",1,0))
+
+# Network design
+ model1 <- keras_model_sequential()
+ model1 %>%
+# Input layer
+ layer_dense(units = 256, activation = "relu", input_shape = ncol(x_train)) %>% 
+ layer_dropout(rate = 0.4) %>% 
+# Hidden layer
+ layer_dense(units = 75, activation = "relu") %>%
+# Output layer
+ layer_dropout(rate = 0.3) %>%
+ layer_dense(units = 2, activation = "sigmoid")
+ 
+ # Network config
+history <- model1 %>% compile(
+ loss = "binary_crossentropy",
+ optimizer = "adam",
+ metrics = c("accuracy")
+)
+# Running our data
+model1 %>% fit(
+ x_train, y_train, 
+ epochs = 100, 
+ batch_size = 50,
+ validation_split = 0.3
+)
+summary(model1)
+
+#Problem 1e
+#Use the model in (d), compute the confusion matrix and overall fraction of correct predictions for the validation period. Use probability of 0.5 as the threshold.
+# Calculating accuracy
+x.valid <- scale(valid.df[,2:7])
+y.valid = valid.df[,9]
+y.valid <- to_categorical(ifelse(valid.df[,9]== "Up",1,0))
+
+predictions1 <- model %>% predict(x.valid)
+confusionMatrix(as.factor(ifelse(predictions1[,2]> 0.5, "Up", "Down")), as.factor(valid.df$Direction), positive = "Up")
+
+#Problem 1f
+#Plot ROC of the prediction in (e) and obtain corresponding AUC
+roc_obj1<-roc(as.factor(valid.df$Direction),(ifelse(predictions1[,2] > 0.5, 1, 0)))
+plot.roc(roc_obj1,legacy.axes=TRUE)
+#auc == area under the curve
+auc(roc_obj1)
+
+```
+```{r}
+#Problem 2
+library(forecast)
+library(matrixStats)
+#Problem 2a
+#Using the first 800 data points to setup an X-bar chart (as shown in slide 9 of lecture 11.). Use sample size n=5.
+data <- read.csv("h7p2.csv")
+train <- head(data$x,800)
+valid<-tail(data$x, 200)
+sample_size = 5
+
+#grouping the train data into subgroup samples
+A3=1.427; #for sample size of 5
+trainm<-matrix(train,ncol=sample_size, byrow=T);
+
+#compute X_double_bar
+X_double_bar <- mean(train);
+X_bar<-rowMeans(trainm);
+#compute S_bar
+S_s <- rowSds(trainm);
+S_bar<-mean(S_s);
+#compute control limit
+UCL<-X_double_bar+A3*S_bar;
+LCL<-X_double_bar-A3*S_bar;
+
+#plot the chart for training and validation period
+total = 1000; nvalid = 200;
+tsnm<-matrix(data$x,ncol=sample_size, byrow=T);
+X_bar_all<-rowMeans(tsnm);
+plot(X_bar_all,type="b");
+lines(c(0,length(X_bar_all)),c(UCL,UCL), col="blue");
+lines(c(0,length(X_bar_all)),c(LCL,LCL), col="blue");
+lines(c((total - nvalid)/sample_size+1,(total - nvalid)/sample_size+1),c(UCL+1,LCL-1), col="blue", lty="dotted");
+
+
+#Problem 2b
+#Using the X-bar chart developed in (a) to check if the last 200 data points is in control. If not, which sample index we first detect the anomaly? Please note you need to group individual data point into samples (with sample size of 5) and check
+
+validm<-matrix(valid,ncol=sample_size, byrow=T);
+X_bar_test<-rowMeans(validm);
+check<-((X_bar_test>UCL) | (X_bar_test<LCL))
+check
+
+#Problem 2c
+#Using the auto.arima model to select the best ARIMA model for the training data and plot the model residuals.
+arimam<-auto.arima(train);
+summary(arimam)
+#train<-arimam$residuals;
+ plot(arimam$residuals)
+```
+```{r}
+ #Prob 2d
+ # Using the training residual data point in (c) to setup an X-bar chart (as shown in slide 9 of lecture 11.). Use sample size n=5
+ 
+ #getting the training residuals
+ tsn<-arimam$residuals;
+ 
+#seting up x_bar control chart for original data
+#using sample size of 5
+train1<-tsn[1:(total-nvalid)];
+valid1<-tsn[(total-nvalid+1):total];
+
+#grouping the train data into subgroup samples
+A3=1.427; #for sample size of 5
+trainm<-matrix(train1,ncol=sample_size, byrow=T);
+#compute X_double_bar
+X_double_bar <- mean(train1);
+X_bar<-rowMeans(trainm);
+#compute S_bar
+S_s <- rowSds(trainm);
+S_bar<-mean(S_s);
+#compute control limit
+UCL<-X_double_bar+A3*S_bar;
+LCL<-X_double_bar-A3*S_bar;
+
+#plot the chart for training and validation period
+tsnm<-matrix(tsn,ncol=sample_size, byrow=T);
+X_bar_all<-rowMeans(tsnm);
+plot(X_bar_all,type="b");
+lines(c(0,length(X_bar_all)),c(UCL,UCL), col="blue");
+lines(c(0,length(X_bar_all)),c(LCL,LCL), col="blue");
+lines(c((total-nvalid)/sample_size+1,(total-nvalid)/sample_size+1),c(min(tsn),max(tsn)), col="blue", lty="dotted");
+
+```
+## PROBLEM 2B
+NO, they are not in control, we detect it from index 0.
+
+```{r}
+#Problem 2e
+#Apply the model in (c) on the testing data and obtain the prediction residual for the testing period. Using the X-bar chart developed in (d) to check if the testing residual data points obtained is in control. If not, which sample index we first detect the anomaly? Please note you need to group individual residual data point into samples (with sample size of 5) and check.
+#applying the model on test data and get residuals
+
+#arimam was the model obtained from c
+train2<-arimam$residuals;
+arimavalid<-Arima(valid,model=arimam);
+
+#Prediction residual for the testing set (valid data set)
+valid2<-arimavalid$residuals;
+valid2
+
+tsn<-c(train2,valid2);
+
+A3=1.427; #for sample size of 5
+trainm<-matrix(train2,ncol=sample_size, byrow=T);
+#compute X_double_bar
+X_double_bar <- mean(train2);
+X_bar<-rowMeans(trainm);
+#compute S_bar
+S_s <- rowSds(trainm);
+S_bar<-mean(S_s);
+#compute control limit
+UCL<-X_double_bar+A3*S_bar;
+LCL<-X_double_bar-A3*S_bar;
+
+#plot the chart for training and validation eriod
+tsnm<-matrix(tsn,ncol=sample_size, byrow=T);
+X_bar_all<-rowMeans(tsnm);
+plot(X_bar_all,type="b");
+lines(c(0,length(X_bar_all)),c(UCL,UCL), col="blue");
+lines(c(0,length(X_bar_all)),c(LCL,LCL), col="blue");
+lines(c((total-nvalid)/sample_size+1,(total-nvalid)/sample_size+1),c(min(tsn),max(tsn)), col="blue", lty="dotted");
+
+# Using the X-bar chart developed in (d) to check if the testing residual data points obtained is in control. If not, which sample index we first detect the anomaly? Please note you need to group individual residual data point into samples (with sample size of 5) and check.
+#find which point in validation period is out-of-control
+validmnew<-matrix(valid2,ncol=sample_size, byrow=T);
+X_bar_test<-rowMeans(validmnew);
+check1<-((X_bar_test>UCL) | (X_bar_test<LCL))
+check1
+
+```
+##Problem 2e
+
+It is mostly in control since we have most of the check being false. 
+
+
+

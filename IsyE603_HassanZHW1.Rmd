@@ -1,0 +1,142 @@
+---
+Name: "Zanub Hassan"
+title: "IsyE 603 HW1"
+output: html_notebook
+
+---
+
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+#Problem 1 1
+college <- read.csv(file = 'College.csv', header = TRUE)
+fix(college)
+rownames(college) = college[,1]
+fix(college)
+college = college[,-1]
+fix(college)
+
+summary(college)
+# Making the pairs function read the first column as numeric data
+college[,1] = as.numeric(factor(college[,1]))
+pairs(college[, 1:10])
+
+boxplot(Outstate~Private, data = college)
+
+Elite = rep("No", nrow(college))
+Elite[college$Top10perc > 50] = "Yes"
+Elite = as.factor(Elite)
+college = data.frame(college, Elite)
+summary(college)
+
+boxplot(Outstate~Elite, data = college)
+# The code directly below will partition  the print window into 4 to enable 4 plots to be made simultaneously
+par(mfrow = c(2,2))
+hist(college$Top10perc, breaks = 5)
+hist(college$Top10perc, breaks = 10)
+hist(college$Top10perc, breaks = 20)
+hist(college$Top10perc, breaks = 30)
+
+ggplot(data = college, aes(Apps, Accept)) +
+  geom_point(shape = 21, alpha= 0.3)+
+  geom_smooth(method = lm)
+
+```
+## Problem 1(vi)
+There is a positive correlation between the number of applications and the amount of acceptance.
+```{r}
+#Problem 2
+Auto <- read.csv(file = 'Auto.csv', header = TRUE)
+
+#The horsepower variable was read in as a character instead of numeric for some reason so I converted it back to a numeric 
+Auto$horsepower<-as.numeric(as.character(Auto$horsepower))
+
+#problem 2a code
+sapply(Auto, class)
+
+##Problem 2b - Range
+# x indicates which auto data is numeric and we estimate the rest of the problems based only on the numeric variables
+x <- sapply(Auto, is.numeric)
+x
+sapply(Auto[, x], range, na.rm = TRUE)
+
+##Problem 2c - means and stdv of quantitative predictors 
+sapply(Auto[,x], mean, na.rm = TRUE)
+sapply(Auto[,x], sd, na.rm = TRUE)
+
+##Problem 2d
+Auto1 = Auto[-c(10:85),]
+sapply(Auto1[, x], range, na.rm = TRUE)
+sapply(Auto1[,x], mean, na.rm = TRUE)
+sapply(Auto1[,x], sd, na.rm = TRUE)
+ 
+##Problem 2e and 2f
+plot(Auto)
+ggplot(data = Auto,aes( x = weight,  y= cylinders)) + geom_point()
+ggplot(data = Auto,aes( x = displacement ,  y= cylinders)) + geom_point()
+ggplot(data = Auto,aes( x = weight ,  y= mpg)) + geom_point()
+ggplot(data = Auto,aes( x = year ,  y= mpg)) + geom_point()
+ggplot(data = Auto,aes( x = origin ,  y= mpg)) + geom_point()
+ggplot(data = Auto,aes( x = acceleration ,  y= mpg)) + geom_point()
+```
+## Problem 2
+a) Name is qualitative. The rest of the variables are quantitative
+
+e)From the overall plots and the mini plots we can say that weight and cylinder are well correlated. This is also true for cylinders and displacement. There is a negative correlation between weight and mpg.
+f) Based on some of the mpg plots above, year, orgin and acceleration might be useful in predicting mpg. 
+```{r}
+##Problem 3
+#Problem 3a
+library(MASS)
+? Boston
+nrow(Boston)
+ncol(Boston)
+
+#Problem 3b
+pairs(Boston)
+#Problem 3c
+plot(data = Boston, crim~age)
+plot(data = Boston, crim~tax)
+
+#Problem 3d
+par(mfrow = c(2,2))
+hist(Boston$crim, breaks = "FD")
+hist(Boston$crim, breaks = 40)
+hist(Boston$tax, breaks = "FD")
+hist(Boston$ptratio, breaks = "FD")
+
+#Problem 3e
+summary(Boston$chas == 1)
+
+#Problem 3f
+median(Boston$ptratio)
+
+#Problem 3g
+which.min(Boston$medv)
+
+#Problem 3h
+summary(Boston$rm > 7)
+summary(Boston$rm > 8)
+
+```
+## Problem 3
+a)  The Boston data frame contains 506 rows and 14 columns.
+b) chas is a binary variable. rad and tax contains lots of constant variables.
+c) Based on the pairwise plot and the plot above and the individual plots of crim and two other variables above, we can see that there exists a relationship between crim  and some of the other predictors like age , tax and so on.
+d) The Boston$crim historgram has a long tale. There are outliers for the Boston$tax histogram and the  Boston$ptratio plot has no real outliers.
+e)    Mode   FALSE    TRUE 
+logical     471      35 
+f) Median = 19.05
+g) suburb #399
+h) for 7 rooms per dwelling we have
+   Mode   FALSE    TRUE 
+logical     442      64 
+ for 8 rooms per dwelling we have
+   Mode   FALSE    TRUE 
+logical     493      13 
+ 
+
+
+
+

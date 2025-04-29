@@ -1,0 +1,140 @@
+--
+Name: Zanub Hassan
+title: "IsyE 603 HW 5 "
+output: html_notebook
+Date: March 28, 2022
+---
+
+## Problem 1
+a) MA(3) - The ACF has three spikes and the PACF dies out in an exponential manner.
+
+b) ARIMA(2,0,1)
+
+c) ARIMA(1,1,1)
+
+d)AR(2) - This is because the ACF plot shows a sinusodial pattern, while the PACF shows just two significant spikes
+
+
+```{r}
+#Problem 2(c)
+#Using arima.sim function in R to simulate the three models and plot the simulated series. Make the length of the time series be 100.
+library(graphics)
+#first model
+i<-arima.sim(model = list(order = c(1,0,1), ar = 0.7, ma = 0.6), n = 100)
+plot(i)
+acf(i)
+pacf(i)
+
+#second model
+ii<-arima.sim(model = list(order = c(1,1, 1), ar = 0.7, ma = 0.6), n = 100)
+plot(ii)
+acf(ii)
+pacf(ii)
+
+#third model
+ library(forecast)
+    model_1 <- Arima(ts(rnorm(100),freq=4), order=c(1,0,1), seasonal=c(0,1,0),
+                 fixed=c(phi=0.7, theta=-0.6))
+    foo <- simulate(model_1, nsim=1000)
+    plot(foo)
+    Acf(foo)
+    pacf(foo)
+```
+
+
+```{r}
+#Problem 3a
+#Getting the ARIMA Model
+library(fpp3)
+fit <- aus_airpassengers %>%
+  model(ARIMA(Passengers))
+report(fit)
+
+#Plotting the ACF and PACF of residuals
+fit %>% gg_tsresiduals()
+#This code is supposed to plot the PACF alongside the ACF but it comes in as just a straight line 
+gg_tsdisplay(residuals(fit))
+
+#Plotting the forecasts for the next 10 periods
+fit %>% forecast(h=10) %>%
+  autoplot(aus_airpassengers)
+
+#Problem 3c
+#Plotting theforecast of a model from (0,1,0) with drift
+fit1 <- aus_airpassengers %>%
+model(arima = ARIMA(Passengers ~ pdq(0, 1, 0)))  
+
+#plot forecast for next 10 periods
+fit1 %>% forecast(h=10) %>%
+  autoplot(aus_airpassengers)
+
+#Problem 3d
+#Plotting theforecast of a model from (2,1,2) with drift
+fit2 <- aus_airpassengers %>%
+# 1 is the drift
+model(arima = ARIMA(Passengers ~ 1 + pdq(2,1,2)))  
+
+#plot forecast for next 10 periods
+fit2 %>% forecast(h=10) %>%
+  autoplot(aus_airpassengers)
+```
+
+## Problem 3a
+The model is ARIMA(0,2,1)
+
+## Problem 3b
+Note: E is epsilon in this case.
+The model can be written as follows:
+Yt = -0.8963Et-1 + Et = (-0.8963B + 1)Et
+
+## Problem 3c
+The model ARIMA (0,1,0) with the drift has an upward trend like the model in part a . However, the trend is not as rapid as that of part a.
+
+## Problem 3d
+The model ARIMA (2,1,2) with the drift has an upward trend like the model in part a . However, the trend is not as rapid as that of part a.
+
+```{r}
+#Problem 4a
+library(zoo)
+library(forecast)
+SouvenirSales.data <- read.csv(file ='SouvenirSales.csv', header = TRUE)
+#creating the data in a time series format spanning from  Jan 1995 to  Dec. 2001 using a freq of 12
+Sales.ts <- ts(SouvenirSales.data$Sales, start = c(1995,1), end = c(2001, 12), freq = 12)
+fixed.nValid <- 12
+# since we have a fixed valid the rest will be training. 
+fixed.nTrain <- length(Sales.ts) - fixed.nValwid
+#training period
+train.ts <- window(Sales.ts, start = c(1995, 1), end = c(1995, fixed.nTrain))
+#validation period
+valid.ts <- window(Sales.ts, start = c(1995, fixed.nTrain + 1), end = c(1995, fixed.nTrain + fixed.nValid))
+
+##Running the regression for modelA- used only training period only
+Model_A <- tslm(train.ts ~ trend + season)
+summary(Model_A)
+
+#Problem 4b
+#Plot ACF and PACF plot until lag 10 for residuals model in part (a)
+Acf(Model_A$residuals, lag.max = 10, main = "")
+Pacf(Model_A$residuals, lag.max = 10, main = "")
+
+#Problem 4c
+#Establish an AR(2) model for the residuals in (b)
+AR_Model <- Arima(Model_A$residuals, order =c(2,0,0))  
+AR_Model
+
+#Problem 4d
+#Plot ACF and PACF plot until lag 10 for residuals model for the AR(2) model
+Acf(AR_Model$residuals, lag.max = 10, main = "")
+Pacf(AR_Model$residuals, lag.max = 10, main = "")
+
+#Problem 4e
+#Use auto.arima function to automatically find a best ARIMA model for the training period data
+Model<-auto.arima(train.ts, seasonal=TRUE)
+summary(Model)
+
+#Problem 4f
+#Fit the identified model in (e) and plot the fitted values of the model and the observed training period data.
+fit4 <- Arima(train.ts, order=c(0,1,2), seasonal=c(0,1,1))
+summary(fit4)
+
+plot(train.ts, ylim = c(1500, 105000), 
